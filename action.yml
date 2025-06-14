@@ -207,6 +207,8 @@ runs:
 
     - name: Create PR
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         echo "::group::Creating PR"
         if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
