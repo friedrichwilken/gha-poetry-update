@@ -18,6 +18,9 @@ inputs:
     description: 'A prefix that gets prependet to the PR title'
   pr-labels:
     description: 'A comma or newline separated list of labels added to the PR'
+  test_command:
+    description: a command for a test to run after updating every package
+    default: ''
 
 runs:
   using: "composite"
