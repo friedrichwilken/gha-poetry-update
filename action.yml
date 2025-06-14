@@ -85,22 +85,78 @@ runs:
         fi
       shell: bash
 
+    - name: Poetry install
+      run: poetry install
+
     #----------------------------------------------
-    #                Run poetry update
+    #   Get package names
     #----------------------------------------------
-    - name: Run poetry update
-      working-directory: ${{ inputs.directory }}
-      if: env.RUN_UPDATE != 'false'
+    - name: Get package names
+      id: get_packages
       run: |
-        echo "running install"
-        poetry install --no-interaction --no-root
-        poetry update > /var/tmp/updated_deps.txt
-        {
-          echo "UPDATE_MESSAGE<<EOF"
-          cat /var/tmp/updated_deps.txt
-          echo "EOF"
-        } >> $GITHUB_ENV
-      shell: bash
+        packages=$(poetry show -T | awk '{print $1}' | paste -sd "," -)
+        echo "packages=$packages" >> $GITHUB_OUTPUT
+
+    - name: Show package array
+      run: |
+        echo "Packages: ${{ steps.get_packages.outputs.packages }}"
+
+    - name: Update, test, commit successes, and collect results
+      id: update_test
+      env:
+        TEST_COMMAND: ${{ inputs.test_command }}
+        GITHUB_ACTOR: ${{ github.actor }}
+        GITHUB_EMAIL: ${{ github.actor }}@users.noreply.github.com
+      run: |
+        # Split the comma-separated package list into an array
+        IFS=',' read -ra pkgs <<< "${{ steps.get_packages.outputs.packages }}"
+        failed=""
+        passed=""
+
+        # Configure git user for commits
+        git config user.name "${GITHUB_ACTOR}"
+        git config user.email "${GITHUB_EMAIL}"
+
+        for pkg in "${pkgs[@]}"; do
+          echo "::group::updating package $pkg"
+          echo "Updating $pkg"
+          poetry update "$pkg"
+
+          # Check if the test command is empty
+          if [ -z "$TEST_COMMAND" ]; then
+            echo "No test command provided, skipping tests for $pkg."
+            test_passed=true
+          else
+            echo "Running test command: $TEST_COMMAND"
+            if bash -c "$TEST_COMMAND"; then
+              echo "Test passed for $pkg"
+              test_passed=true
+            else
+              echo "Test failed for $pkg, undoing changes..."
+              git reset --hard
+              test_passed=false
+            fi
+          fi
+
+          # If test passed (or was skipped), commit the update
+          if [ "$test_passed" = true ]; then
+            passed="${passed}${pkg},"
+            git add .
+            git commit -m "Update and successfully test $pkg"
+          else
+            failed="${failed}${pkg},"
+          fi
+
+          echo "::endgroup::"
+        done
+
+        # Remove trailing commas
+        failed="${failed%,}"
+        passed="${passed%,}"
+
+        # Export the failed and passed package names as step outputs
+        echo "failed_packages=$failed" >> $GITHUB_OUTPUT
+        echo "passed_packages=$passed" >> $GITHUB_OUTPUT
 
     #----------------------------------------------
     #              Create a pull request
@@ -123,8 +179,8 @@ runs:
           # NOTE: undesirable behaviour may occur if a project directory name is excessively long (~100 chars)
           # or if two projects share the same name up to substitutions of "-" with " ".
           BRANCH_NAME="update/poetry-update-$BRANCH_NAME"
-          BRANCH_TITLE="Update poetry dependencies for ${{ inputs.directory  }}"
-          COMMIT_MESSAGE="Chore(deps): Upgrading poetry dependencies for ${{ inputs.directory  }}"
+          BRANCH_TITLE="Update poetry dependencies for ${{ inputs.directory }}"
+          COMMIT_MESSAGE="Chore(deps): Upgrading poetry dependencies for ${{ inputs.directory }}"
         fi
         {
           echo "BRANCH_NAME<<EOF"
@@ -142,17 +198,16 @@ runs:
           echo "EOF"
         } >> $GITHUB_ENV
 
+    # Create a pull request for all successful updates
     - name: Create Pull Request
-      if: env.RUN_UPDATE != 'false'
       uses: peter-evans/create-pull-request@v6
       with:
-          token: ${{ github.token }}
-          labels: ${{ inputs.pr-labels }}
-          branch: ${{ env.BRANCH_NAME }}
-          title: ${{ inputs.pr-title-prefix }} ${{ env.BRANCH_TITLE }}
-          commit-message: ${{ env.COMMIT_MESSAGE }}
-          body: |
-            Update `poetry` dependencies to use latest compatible versions.
-
-            **Poetry update message**:
-                ${{ env.UPDATE_MESSAGE }}
+        commit-message: "Update and successfully test packages"
+        title: "${{ inputs.pr-title-prefix }}update and successfully test packages"
+        body: |
+          This PR updates the following packages that passed testing:
+          ${{ steps.update_test.outputs.passed_packages }}
+          Failed packages:
+          ${{ steps.update_test.outputs.failed_packages }}
+        branch: update-successful-packages-${{ steps.date.outputs.date }}
+        delete-branch: true
