@@ -18,7 +18,7 @@ inputs:
     description: 'A prefix that gets prependet to the PR title'
   pr-labels:
     description: 'A comma or newline separated list of labels added to the PR'
-  test_command:
+  test-command:
     description: a command for a test to run after updating every package
     default: ''
 
@@ -111,7 +111,7 @@ runs:
     - name: Update, test, commit successes, and collect results
       id: update_test
       env:
-        TEST_COMMAND: ${{ inputs.test_command }}
+        TEST_COMMAND: "${{ inputs.test-command }}"
         GITHUB_ACTOR: ${{ github.actor }}
         GITHUB_EMAIL: ${{ github.actor }}@users.noreply.github.com
       shell: bash
