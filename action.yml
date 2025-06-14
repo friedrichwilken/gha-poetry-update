@@ -178,6 +178,7 @@ runs:
 
     - name: Format package lists for PR
       id: format_lists
+      shell: bash
       run: |
         # Format passed packages
         echo "## Updated packages:" > package_list.txt
