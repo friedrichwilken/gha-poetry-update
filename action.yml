@@ -91,7 +91,9 @@ runs:
     - name: Poetry install
       shell: bash
       run: |
+        echo "::group::installing packages"
         poetry install
+        echo "::endgroup::"
 
     #----------------------------------------------
     #   Get package names
@@ -174,18 +176,45 @@ runs:
         echo "failed_packages=$failed" >> $GITHUB_OUTPUT
         echo "passed_packages=$passed" >> $GITHUB_OUTPUT
 
+    - name: Format package lists for PR
+      id: format_lists
+      run: |
+        # Format passed packages
+        echo "## Updated packages:" > package_list.txt
+        if [ -n "${{ steps.update_test.outputs.passed_packages }}" ]; then
+          echo "${{ steps.update_test.outputs.passed_packages }}" | sed 's/,/\n- /g' | sed '1s/^/- /' > package_list.txt
+        else
+          echo "None" > package_list.txt
+        fi
 
-    # Create a pull request for all successful updates
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v6
-      with:
-        commit-message: "Update and successfully test packages"
-        title: "${{ inputs.pr-title-prefix }}update and successfully test packages"
-        labels: ${{ inputs.pr-labels }}
-        body: |
-          This PR updates the following packages that passed testing:
-          ${{ steps.update_test.outputs.passed_packages }}
-          Failed packages:
-          ${{ steps.update_test.outputs.failed_packages }}
-        branch: update-successful-packages-${{ steps.date.outputs.date }}
-        delete-branch: true
+        # Format failed packages
+        echo "## Packages, failed to update:" > package_list.txt
+        if [ -n "${{ steps.update_test.outputs.failed_packages }}" ]; then
+          echo "${{ steps.update_test.outputs.failed_packages }}" | sed 's/,/\n- /g' | sed '1s/^/- /' > package_list.txt
+        else
+          echo "None" > package_list.txt
+        fi
+
+        # Set outputs
+        echo "packages<<EOF" >> $GITHUB_OUTPUT
+        cat package_list.txt >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+
+    - name: Create PR
+      shell: bash
+      run: |
+        if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+          # Create a new branch as the base of our new PR.
+          git checkout -b update-successful-packages-$(date +'%Y%m%d-%H%M%S')
+          # Push the new branch. 
+          git push origin HEAD
+          # Create a new PR:
+          gh pr create \
+          --title "Update and successfully test packages" \
+          --body "${{ steps.format_lists.outputs.packages }}" \
+          --head update-successful-packages-$(date +'%Y%m%d-%H%M%S')
+        else
+          echo "No new commits to create a PR for."
+        fi
+
