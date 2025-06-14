@@ -1,6 +1,6 @@
 name: 'Poetry Update'
 description: 'Runs `poetry update`, checks for newer dependencies. Creates a pull request if any updates are available.'
-author: 'Fuzzy Labs'
+author: 'Fuzzy Labs & Friedrich Wilken'
 branding:
   icon: "chevrons-up"
   color: "purple"
@@ -14,6 +14,10 @@ inputs:
   directory:
     description: "The directory of the project files"
     default: './'
+  pr-title-prefix:
+    description: 'A prefix that gets prependet to the PR title'
+  pr-labels:
+    description: 'A comma or newline separated list of labels added to the PR'
 
 runs:
   using: "composite"
@@ -137,15 +141,15 @@ runs:
           echo $COMMIT_MESSAGE
           echo "EOF"
         } >> $GITHUB_ENV
-        
 
     - name: Create Pull Request
       if: env.RUN_UPDATE != 'false'
       uses: peter-evans/create-pull-request@v6
       with:
           token: ${{ github.token }}
+          labels: ${{ inputs.pr-labels }}
           branch: ${{ env.BRANCH_NAME }}
-          title: ${{ env.BRANCH_TITLE }}
+          title: ${{ inputs.pr-title-prefix }} ${{ env.BRANCH_TITLE }}
           commit-message: ${{ env.COMMIT_MESSAGE }}
           body: |
             Update `poetry` dependencies to use latest compatible versions.
