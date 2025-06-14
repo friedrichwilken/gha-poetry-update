@@ -76,6 +76,7 @@ runs:
     - name: Check if poetry.lock exists
       working-directory: ${{ inputs.directory }}
       if: env.RUN_UPDATE != 'false'
+      shell: bash
       run: |
         if [ -f "poetry.lock" ]; then
           echo "poetry.lock file found, running poetry update."
@@ -83,21 +84,24 @@ runs:
           echo "poetry.lock file not found, skipping poetry update."
           echo "RUN_UPDATE=false" >> $GITHUB_ENV
         fi
-      shell: bash
 
     - name: Poetry install
-      run: poetry install
+      shell: bash
+      run: |
+        poetry install
 
     #----------------------------------------------
     #   Get package names
     #----------------------------------------------
     - name: Get package names
       id: get_packages
+      shell: bash
       run: |
         packages=$(poetry show -T | awk '{print $1}' | paste -sd "," -)
         echo "packages=$packages" >> $GITHUB_OUTPUT
 
     - name: Show package array
+      shell: bash
       run: |
         echo "Packages: ${{ steps.get_packages.outputs.packages }}"
 
@@ -107,6 +111,7 @@ runs:
         TEST_COMMAND: ${{ inputs.test_command }}
         GITHUB_ACTOR: ${{ github.actor }}
         GITHUB_EMAIL: ${{ github.actor }}@users.noreply.github.com
+      shell: bash
       run: |
         # Split the comma-separated package list into an array
         IFS=',' read -ra pkgs <<< "${{ steps.get_packages.outputs.packages }}"
@@ -158,45 +163,6 @@ runs:
         echo "failed_packages=$failed" >> $GITHUB_OUTPUT
         echo "passed_packages=$passed" >> $GITHUB_OUTPUT
 
-    #----------------------------------------------
-    #              Create a pull request
-    #----------------------------------------------
-    - name: Create branch name
-      working-directory: ${{ inputs.directory }}
-      if: env.RUN_UPDATE != 'false'
-      shell: bash
-      run: |
-        if [ ${{ inputs.directory }} == "./" ]
-        then
-          BRANCH_NAME="update/poetry-update"
-          BRANCH_TITLE="Update poetry dependencies"
-          COMMIT_MESSAGE="Chore(deps): Upgrading poetry dependencies"
-        else
-          # replace " " and "_" with dashes
-          BRANCH_NAME=$(echo ${{ inputs.directory }} | sed -r "s/[_ ]/-/g" | sed -r "s/\//--/g")
-          # remove trailing dashes
-          BRANCH_NAME=$(echo $BRANCH_NAME | sed -r "s/-+$//g")
-          # NOTE: undesirable behaviour may occur if a project directory name is excessively long (~100 chars)
-          # or if two projects share the same name up to substitutions of "-" with " ".
-          BRANCH_NAME="update/poetry-update-$BRANCH_NAME"
-          BRANCH_TITLE="Update poetry dependencies for ${{ inputs.directory }}"
-          COMMIT_MESSAGE="Chore(deps): Upgrading poetry dependencies for ${{ inputs.directory }}"
-        fi
-        {
-          echo "BRANCH_NAME<<EOF"
-          echo $BRANCH_NAME
-          echo "EOF"
-        } >> $GITHUB_ENV
-        {
-          echo "BRANCH_TITLE<<EOF"
-          echo $BRANCH_TITLE
-          echo "EOF"
-        } >> $GITHUB_ENV
-        {
-          echo "COMMIT_MESSAGE<<EOF"
-          echo $COMMIT_MESSAGE
-          echo "EOF"
-        } >> $GITHUB_ENV
 
     # Create a pull request for all successful updates
     - name: Create Pull Request
@@ -204,6 +170,7 @@ runs:
       with:
         commit-message: "Update and successfully test packages"
         title: "${{ inputs.pr-title-prefix }}update and successfully test packages"
+        labels: ${{ inputs.pr-labels }}
         body: |
           This PR updates the following packages that passed testing:
           ${{ steps.update_test.outputs.passed_packages }}
