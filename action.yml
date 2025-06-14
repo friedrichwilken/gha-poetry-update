@@ -159,8 +159,8 @@ runs:
 
           if [ "$test_passed" = true ]; then
             passed="${passed}${pkg},"
-            git add .
-            git commit -m "Update and successfully test $pkg"
+            git add . || true
+            git commit -m "Update and successfully test $pkg" || true
           else
             failed="${failed}${pkg},"
           fi
