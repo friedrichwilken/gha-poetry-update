@@ -125,9 +125,18 @@ runs:
         for pkg in "${pkgs[@]}"; do
           echo "::group::updating package $pkg"
           echo "Updating $pkg"
-          poetry update "$pkg"
+          # Capture the output of poetry update
+          update_output=$(poetry update "$pkg" 2>&1)
+          echo "$update_output"
+          # Check if poetry says there's nothing to update
+          if echo "$update_output" | grep -q "No dependencies to install or update"; then
+            echo "No update available for $pkg, skipping test and commit."
+            skipped="${skipped}${pkg},"
+            echo "::endgroup::"
+            continue
+          fi
 
-          # Check if the test command is empty
+          # Check if test command is provided
           if [ -z "$TEST_COMMAND" ]; then
             echo "No test command provided, skipping tests for $pkg."
             test_passed=true
@@ -143,7 +152,6 @@ runs:
             fi
           fi
 
-          # If test passed (or was skipped), commit the update
           if [ "$test_passed" = true ]; then
             passed="${passed}${pkg},"
             git add .
