@@ -180,6 +180,7 @@ runs:
       id: format_lists
       shell: bash
       run: |
+        echo "::group::Creating PR Body"
         # Format passed packages
         echo "## Updated packages:" > package_list.txt
         if [ -n "${{ steps.update_test.outputs.passed_packages }}" ]; then
@@ -200,11 +201,14 @@ runs:
         echo "packages<<EOF" >> $GITHUB_OUTPUT
         cat package_list.txt >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
+        cat package_list.txt
+        echo "::endgroup::"
 
 
     - name: Create PR
       shell: bash
       run: |
+        echo "::group::Creating PR"
         if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
           # Create a new branch as the base of our new PR.
           git checkout -b update-successful-packages-$(date +'%Y%m%d-%H%M%S')
@@ -218,4 +222,5 @@ runs:
         else
           echo "No new commits to create a PR for."
         fi
+        echo "::endgroup::"
 
