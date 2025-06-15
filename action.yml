@@ -182,19 +182,19 @@ runs:
       run: |
         echo "::group::Creating PR Body"
         # Format passed packages
-        echo "## Updated packages:" > package_list.txt
+        echo "## Updated packages:" >> package_list.txt
         if [ -n "${{ steps.update_test.outputs.passed_packages }}" ]; then
-          echo "${{ steps.update_test.outputs.passed_packages }}" | sed 's/,/\n- /g' | sed '1s/^/- /' > package_list.txt
+          echo "${{ steps.update_test.outputs.passed_packages }}" | sed 's/,/\n- /g' | sed '1s/^/- /' >> package_list.txt
         else
-          echo "None" > package_list.txt
+          echo "None" >> package_list.txt
         fi
 
         # Format failed packages
-        echo "## Packages, failed to update:" > package_list.txt
+        echo "## Packages, failed to update:" >> package_list.txt
         if [ -n "${{ steps.update_test.outputs.failed_packages }}" ]; then
-          echo "${{ steps.update_test.outputs.failed_packages }}" | sed 's/,/\n- /g' | sed '1s/^/- /' > package_list.txt
+          echo "${{ steps.update_test.outputs.failed_packages }}" | sed 's/,/\n- /g' | sed '1s/^/- /' >> package_list.txt
         else
-          echo "None" > package_list.txt
+          echo "None" >> package_list.txt
         fi
 
         # Set outputs
@@ -208,21 +208,23 @@ runs:
     - name: Create PR
       shell: bash
       env:
-        GH_TOKEN: ${{ github.token }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PACKAGES: ${{ steps.format_lists.outputs.packages }}
+        BRANCH_NAME: update-successful-packages-${{ github.run_id }}-${{ github.run_attempt }}
       run: |
         echo "::group::Creating PR"
+
+        git fetch origin main
         if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
-          # Create a new branch as the base of our new PR.
-          git checkout -b update-successful-packages-$(date +'%Y%m%d-%H%M%S')
-          # Push the new branch. 
-          git push origin HEAD
-          # Create a new PR:
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME"
           gh pr create \
-          --title "Update and successfully test packages" \
-          --body "${{ steps.format_lists.outputs.packages }}" \
-          --head update-successful-packages-$(date +'%Y%m%d-%H%M%S')
+            --title "Update and successfully test packages" \
+            --body "$PACKAGES" \
+            --head "$BRANCH_NAME"
         else
           echo "No new commits to create a PR for."
         fi
+
         echo "::endgroup::"
 
