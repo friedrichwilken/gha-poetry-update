@@ -21,6 +21,9 @@ inputs:
   test-command:
     description: a command for a test to run after updating every package
     default: ''
+  github_token:
+    description: 'GitHub token'
+    required: true
 
 runs:
   using: "composite"
@@ -204,13 +207,13 @@ runs:
         cat package_list.txt
         echo "::endgroup::"
 
-
     - name: Create PR
       shell: bash
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PACKAGES: ${{ steps.format_lists.outputs.packages }}
         BRANCH_NAME: update-successful-packages-${{ github.run_id }}-${{ github.run_attempt }}
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
         echo "::group::Creating PR"
 
