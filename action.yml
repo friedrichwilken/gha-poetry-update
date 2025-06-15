@@ -210,7 +210,6 @@ runs:
     - name: Create PR
       shell: bash
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PACKAGES: ${{ steps.format_lists.outputs.packages }}
         BRANCH_NAME: update-successful-packages-${{ github.run_id }}-${{ github.run_attempt }}
         GH_TOKEN: ${{ inputs.github_token }}
